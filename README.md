@@ -11,11 +11,12 @@
 ## 🌟 Key Features
 
 1. **Sub-millisecond Intent Profiling (`< 1ms`)**: Categorizes conversation into domains (B2B, Legal, Analytics, DevOps, Chat) before invoking heavy LLMs.
-2. **Dynamic Context Pruning**: Eliminates up to 90% of redundant history tokens while preserving active business entity anchors and pronoun references.
-3. **Turn Collision & Interrupt Arbitration**: Distinguishes between hard overrides (abort current generation immediately), soft appends (queue to end of turn), and debounced input fragments.
-4. **Search Planning & Decomposition**: Determines real-time search necessity, binds search origin channels (judicial, b2b, realtime news), and splits queries concurrently.
-5. **Tiered Vision & OCR Guard**: Intercepts dense document scans via local OCR (0 Vision Token consumption) and detects bounding boxes for seals/signatures.
-6. **Plain English Error Triage**: Classifies 401/403/429/500 faults into actionable diagnostics instead of silent drops.
+2. **Selective Memory Gating**: Gates long-term memory recall and retention. Suppresses trivial chit-chat/commands to protect Prompt Cache hits and prevent memory pollution.
+3. **Dynamic Context Pruning**: Eliminates up to 90% of redundant history tokens while preserving active business entity anchors and pronoun references.
+4. **Turn Collision & Interrupt Arbitration**: Distinguishes between hard overrides (abort current generation immediately), soft appends (queue to end of turn), and debounced input fragments.
+5. **Search Planning & Decomposition**: Determines real-time search necessity, binds search origin channels (judicial, b2b, realtime news), and splits queries concurrently.
+6. **Tiered Vision & OCR Guard**: Intercepts dense document scans via local OCR (0 Vision Token consumption) and detects bounding boxes for seals/signatures.
+7. **Plain English Error Triage**: Classifies 401/403/429/500 faults into actionable diagnostics instead of silent drops.
 
 ---
 

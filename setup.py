@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="jev-preflight-director",
-    version="2.0.0",
+    version="2.0.1",
     description="Sub-millisecond Pre-flight Gateway & Director for LLM Agents",
     author="will-xia-cm",
     packages=find_packages(),

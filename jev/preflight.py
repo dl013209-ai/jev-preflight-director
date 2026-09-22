@@ -108,6 +108,21 @@ class JevPreflightDirector:
             search_origin = "general_web"
             search_queries = [q[:30]]
 
+        # Memory Gating Decision
+        trivial_patterns = [
+            r"^(好的|可以|行|收到|明白|测试|继续|重启|更新|重新启动|ok|yes|no|对|好的继续|好的，继续)$",
+            r"^(看下|查看|查一下|在吗|你好|早上好|晚上好)$"
+        ]
+        is_trivial = any(re.match(p, q, re.IGNORECASE) for p in trivial_patterns)
+        if is_trivial or len(q) < 6 or matched_domain == "General Chat":
+            need_memory_recall = False
+            memory_query = ""
+            need_memory_retain = False
+        else:
+            need_memory_recall = True
+            memory_query = q[:80]
+            need_memory_retain = (matched_domain != "DevOps")
+
         elapsed_ms = (time.time() - t0) * 1000
 
         return {
@@ -120,5 +135,8 @@ class JevPreflightDirector:
             "need_search": need_search,
             "search_origin": search_origin,
             "search_queries": search_queries[:3],
+            "need_memory_recall": need_memory_recall,
+            "memory_query": memory_query,
+            "need_memory_retain": need_memory_retain,
             "mcp_quota": []
         }
