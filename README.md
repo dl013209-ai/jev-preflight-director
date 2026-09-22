@@ -1,65 +1,63 @@
-# Jev Preflight Director (Jev 2.0)
+# Jev Preflight Director 2.0
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+High-speed, zero-overhead preflight director, dynamic skill/tool router, and context compaction orchestrator for LLM Agent systems.
 
-> **An ultra-fast (<1ms) System One pre-flight gateway & director for LLM Agents.**  
-> Pre-classifies user intent, prunes context dynamically to save 70%~90% input tokens, arbitrates streaming interrupts, plans search decomposition, and gates vision/OCR tiers.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Latency](https://img.shields.io/badge/Preflight%20Latency-%3C%201ms-brightgreen.svg)](#performance)
+[![Context Compaction](https://img.shields.io/badge/Context%20Pruning-Adaptive-orange.svg)](#features)
 
----
+## What It Does
 
-## 🌟 Key Features
+`Jev Preflight Director 2.0` intercepts inbound user requests before heavy model inference, executing deterministic local heuristics and structured classification in `< 1ms`:
 
-1. **Sub-millisecond Intent Profiling (`< 1ms`)**: Categorizes conversation into domains (B2B, Legal, Analytics, DevOps, Chat) before invoking heavy LLMs.
-2. **Selective Memory Gating**: Gates long-term memory recall and retention. Suppresses trivial chit-chat/commands to protect Prompt Cache hits and prevent memory pollution.
-3. **Dynamic Context Pruning**: Eliminates up to 90% of redundant history tokens while preserving active business entity anchors and pronoun references.
-4. **Turn Collision & Interrupt Arbitration**: Distinguishes between hard overrides (abort current generation immediately), soft appends (queue to end of turn), and debounced input fragments.
-5. **Search Planning & Decomposition**: Determines real-time search necessity, binds search origin channels (judicial, b2b, realtime news), and splits queries concurrently.
-6. **Tiered Vision & OCR Guard**: Intercepts dense document scans via local OCR (0 Vision Token consumption) and detects bounding boxes for seals/signatures.
-7. **Plain English Error Triage**: Classifies 401/403/429/500 faults into actionable diagnostics instead of silent drops.
+1. **Stage 0: Input Debouncing & Pivot Interruption**  
+   Detects user overrides (`"stop"`, `"wait"`, `"recalculate"`) and drops obsolete branches instantly.
+2. **Stage 1: Intent Gating & Address Scoping**  
+   Routes domains with strict 3-tier confidence gating (`>=0.85` high auto-gate, `0.70-0.84` soft recommendation, `<0.70` fail-open).
+3. **Stage 2: Memory Gating & File Radar**  
+   Prevents full-database memory scanning on casual chat; extracts domain-specific entity anchors.
+4. **Stage 3: Dynamic Skill & MCP Scoping**  
+   Limits loaded tools to `<= 2` per turn (< 1,000 tool payload tokens), eliminating model hallucination.
+5. **Stage 4: Adaptive Context Compaction & Skeleton Preservation**  
+   Implements 3-tier context management (<30k lightweight pruning, 30k-80k structured summarization, >80k session splitting) with hard-locking for statutory IDs, exact prices, and overriding directives.
 
----
+## Architecture
 
-## 🚀 Quick Start
+```
+User Message
+   │
+   ▼
+[Stage 0: Debounce & Pivot Interruption] (0.01ms)
+   │
+   ▼
+[Stage 1: Domain Intent & Memory Addressing] (0.50ms)
+   │
+   ▼
+[Stage 2: Memory Gating & Fact Anchors] (0.20ms)
+   │
+   ▼
+[Stage 3: Dynamic Skill & MCP Scoping] (0.20ms)
+   │
+   ▼
+[Stage 4: Session Compaction & Skeleton Locking] (0.10ms)
+   │
+   ▼
+To Execution LLM (Gemini / Claude / DeepSeek)
+```
+
+## Quick Start
 
 ```python
-from jev.preflight import JevPreflightDirector
+from jev.orchestrator import JevFullOrchestrator
 
-director = JevPreflightDirector()
+orchestrator = JevFullOrchestrator()
+res = orchestrator.orchestrate_turn("Draft a formal contract counter-argument", history_len=5, current_tokens=15000)
 
-# Classify incoming turn
-result = director.classify_turn(
-    "Check the latest market wholesale quote for M8 galvanized hex bolts",
-    history_len=3
-)
-
-print(result)
-# Output:
-# {
-#   'elapsed_ms': 0.12,
-#   'domain': 'B2B & Procurement',
-#   'collision': 'NORMAL_PROCEED',
-#   'keep_turns': 2,
-#   'need_search': True,
-#   'search_origin': 'b2b_market',
-#   'search_queries': ['M8 galvanized hex bolts wholesale quote'],
-#   'mcp_quota': []
-# }
+print("Domain:", res["stage_1_preflight"]["domain"])
+print("Active Skills:", res["stage_3_skills_and_tools"]["activated_skills"])
+print("Prune Decision:", res["stage_4_compression"]["action"], "Keep turns:", res["stage_4_compression"]["keep_turns"])
 ```
 
----
+## License
 
-## 📄 Architecture Overview
-
-```text
-[Incoming Message] ──▶ [Jev Preflight (<1ms)] ──┬──▶ [Context Pruning: Keep 0/2 turns]
-                                                ├──▶ [Search Planning: 1~3 concurrent queries]
-                                                ├──▶ [Vision Guard: OCR vs. Vision LLM]
-                                                └──▶ [Active Entity Tracking Anchor]
-```
-
----
-
-## 📜 License
-
-Distributed under the MIT License.
+MIT License.
