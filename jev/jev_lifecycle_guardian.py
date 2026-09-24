@@ -410,13 +410,18 @@ def legal_result_verifier(tool_name: str, result_str: str) -> Optional[str]:
     lines = ["\n\n⚖️ 【Jev 法律结果核验清单 · 交付前必查】"]
 
     # 【真实性核验】法条必须带 FLK 唯一编号与生效年份
-    if cites:
-        has_flk = bool(_FLK_ID_PATTERN.search(result_str))
+    # 注意：FLK 编号本身即最强证据，独立于"第X条"式引用判断，避免漏判
+    has_flk = bool(_FLK_ID_PATTERN.search(result_str))
+    if cites or has_flk:
+        cite_desc = f"法条引用 {len(cites)} 处" if cites else "法条引用"
         if has_flk:
-            lines.append(f"• 法条引用 {len(cites)} 处：✅ 已检出 FLK 官方编号，可直接引用")
+            lines.append(
+                f"• {cite_desc}：✅ 已检出 FLK 官方唯一编号，可直接引用\n"
+                "  → 仍需核对生效年份与是否被修订，确保引用现行有效版本"
+            )
         else:
             lines.append(
-                f"• 法条引用 {len(cites)} 处：⚠️ 未检出 FLK 唯一编号！\n"
+                f"• {cite_desc}：⚠️ 未检出 FLK 唯一编号！\n"
                 "  → 交付前必须经 legal-hub 回源核实逐字条文与生效年份，禁止凭记忆引用"
             )
 
