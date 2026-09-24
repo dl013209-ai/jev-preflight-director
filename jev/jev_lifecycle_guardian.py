@@ -27,18 +27,25 @@ DESTRUCTIVE_COMMAND_PATTERNS = [
 ]
 
 # ----------------- 2. 工具前置门禁 (Pre-Tool Guardian) -----------------
-def pre_tool_guardian(tool_name: str, args: Any) -> Optional[Dict[str, str]]:
+def pre_tool_guardian(tool_name: str, args: Any) -> Optional[Dict[str, Any]]:
     """
-    工具调用前审查：
-    - 返回 None: 允许放行
-    - 返回 {"action": "block", "message": "..."}: 物理熔断拦截
+    工具调用前审查。严格遵循 Hermes 官方 pre_tool_call 返回契约：
+      - return None                                 -> 放行
+      - {"action": "block",  "message": "..."}      -> 物理熔断拦截
+      - {"action": "modify", "args": {...}}         -> 就地纠偏入参后放行
+      - {"action": "approve","message": "..."}      -> 升级人工拍板门禁
     """
     if not isinstance(args, dict):
         return None
-    
-    # 审查 terminal 命令
+
+    # ---------- A. terminal 命令审查 ----------
     if tool_name == "terminal":
-        cmd = args.get("command", "").strip()
+        cmd = args.get("command")
+        if not isinstance(cmd, str):
+            return None
+        cmd = cmd.strip()
+
+        # A1. 物理安全红线：不可逆破坏性命令 -> 硬拦截
         for pat in DESTRUCTIVE_COMMAND_PATTERNS:
             if re.search(pat, cmd, re.IGNORECASE):
                 return {
@@ -49,11 +56,31 @@ def pre_tool_guardian(tool_name: str, args: Any) -> Optional[Dict[str, str]]:
                         "底层已物理强制熔断阻断执行！如确有需要，必须先出具受损影响清单并在飞书等主人明确拍板！"
                     )
                 }
-    
-    # 审查 write_file / patch 是否破坏根卷或核心系统底座
+
+        # A2. 高危不可逆动作（kill/reboot/dd/rm 等）-> 升级人工拍板门禁（红线4）
+        if _is_reversible_risk_command(cmd):
+            return {
+                "action": "approve",
+                "message": (
+                    f"⚠️ [Jev 高危动作拍板门禁] 命令涉及不可逆操作: `{cmd}`\n"
+                    "触犯【红线4·高危动作拍板门禁】！已挂起，等主人明确拍板后方可执行！"
+                ),
+                "rule_key": "jev_destructive_action_gate",
+            }
+
+    # ---------- B. 文件写入路径审查 ----------
     if tool_name in ("write_file", "patch"):
-        path = str(args.get("path", "")).strip()
-        if path.startswith("/System") or path.startswith("/usr/bin") or path.startswith("/bin") or path.startswith("/sbin"):
+        raw_path = args.get("path")
+        if not isinstance(raw_path, str):
+            return None
+        path = raw_path.strip()
+
+        # B1. 系统底层与系统卷 -> 硬拦截
+        blocked_prefixes = (
+            "/System", "/Library/Apple", "/private/var/db",
+            "/Volumes/", "/usr/lib", "/usr/sbin", "/bin", "/sbin",
+        )
+        if any(path.startswith(p) for p in blocked_prefixes):
             return {
                 "action": "block",
                 "message": (
@@ -61,8 +88,47 @@ def pre_tool_guardian(tool_name: str, args: Any) -> Optional[Dict[str, str]]:
                     "触犯老 Mac Haswell Iris Pro 核显宿主物理红线！已底层拦截！"
                 )
             }
-            
+
+        # B2. 微信/飞书本地数据（红线2）-> 硬拦截
+        if ("LarkShell" in path) or ("com.tencent.xinWeChat" in path) or ("WeChat" in path and "Library" in path):
+            return {
+                "action": "block",
+                "message": (
+                    f"🛑 [Jev 物理安全红线拦截] 检测到试图改动微信/飞书本地数据库: `{path}`！\n"
+                    "触犯【红线2·禁删记录】！已底层物理拦截！"
+                )
+            }
+
     return None
+
+
+def _is_reversible_risk_command(cmd: str) -> bool:
+    """识别高危但非"格式化级"的不可逆动作，用于升级人工拍板门禁。
+
+    仅匹配真正会改动系统状态、且无法简单撤销的形态，避免把只读探针误伤升级。
+    """
+    readonly_guards = (
+        "grep", "pgrep", "ps aux", "top -l", "sysctl -n", "lsof", "ls ", "cat ",
+        "read", "status", "df -h", "uptime", "which ",
+    )
+    if any(g in cmd for g in readonly_guards):
+        return False
+
+    risky_patterns = [
+        r"(?:^|[;&|]\s*)sudo\s+",                     # sudo 提权
+        r"\bkill(?:all)?\s+-\d*9\b|\bkill(?:all)?\s+-KILL\b",  # 强杀
+        r"\breboot\b|\bshutdown\b|\bhalt\b",           # 关机重启
+        r"\bdd\s+",                                     # dd 写盘
+        r"\bdiskutil\s+(?:erase|reformat|partition)",   # 磁盘操作
+        r"\brm\s+-(?:r|f|rf|fr)",                      # 递归删除（非根路径已由上一步拦）
+        r"\bchmod\s+-R\s+777\b",                       # 权限滥改
+        r"\blaunchctl\s+(?:unload|bootout|remove)",     # 卸载系统服务
+        r"\bcsrutil\b|\bspctl\b",                      # 系统完整性策略
+    ]
+    for pat in risky_patterns:
+        if re.search(pat, cmd):
+            return True
+    return False
 
 
 # ----------------- 3. 错误急诊室 (Error Doctor) -----------------
