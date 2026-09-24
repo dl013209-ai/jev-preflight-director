@@ -131,6 +131,72 @@ def _is_reversible_risk_command(cmd: str) -> bool:
     return False
 
 
+# ================= 2B. 法律业务红线守护 (Legal Domain Guardian) =================
+# 源自《通用四步全链路资产包 · 诉讼文书与法律抗辩》三条业务红线。
+# 触发场景：write_file / patch 写入文书类文件（.md/.docx 等诉讼材料）。
+
+# 【红线1·防自认拦截】隐性自认词（主人明示特赦方可放行）
+LEGAL_SELF_ADMISSION_TERMS = [
+    "被迫", "借新还旧", "无力偿还", "无力清偿", "确实欠款", "承认欠款",
+    "自愿承担", "我方违约", "本人违约", "同意偿还", "愿意归还", "确有困难",
+    "实在还不上", "认账", "自认", "无异议认可",
+]
+
+# 文书类扩展名
+_LEGAL_DOC_SUFFIXES = (".md", ".txt", ".docx", ".doc")
+
+
+def _looks_like_legal_document(path: str) -> bool:
+    """判断目标路径是否像一份诉讼/法律文书。"""
+    if not isinstance(path, str):
+        return False
+    p = path.lower()
+    if not p.endswith(_LEGAL_DOC_SUFFIXES):
+        return False
+    legal_markers = (
+        "起诉状", "答辩", "上诉", "再审", "代理意见", "质证", "申请书",
+        "答辩状", "抗辩", "诉状", "法律意见", "案件分析", "心证", "证据清单",
+        "legal/", "诉讼", "案卷",
+    )
+    return any(m in path or m.lower() in p for m in legal_markers)
+
+
+def legal_document_guard(tool_name: str, args: Any) -> Optional[Dict[str, Any]]:
+    """诉讼文书业务红线预审（写盘前）。
+
+    【红线1·防自认拦截】：文书中出现隐性自认词 -> 升级人工拍板门禁，
+      因为这类词一旦落入卷宗即为对己方不利的事实自认，不可逆。
+    """
+    if tool_name not in ("write_file", "patch"):
+        return None
+    if not isinstance(args, dict):
+        return None
+
+    path = args.get("path")
+    if not _looks_like_legal_document(path):
+        return None
+
+    # 抽取待写入正文（write_file 用 content；patch 用 new_string）
+    body = args.get("content")
+    if not isinstance(body, str):
+        body = args.get("new_string")
+    if not isinstance(body, str) or not body:
+        return None
+
+    hits = [w for w in LEGAL_SELF_ADMISSION_TERMS if w in body]
+    if hits:
+        return {
+            "action": "approve",
+            "message": (
+                f"⚖️ [Jev 法律红线1·防自认拦截] 文书 `{path}` 中出现隐性自认词: {('、'.join(hits))}\n"
+                "此类词句一经落卷即构成对己方不利的事实自认，且不可逆！\n"
+                "已挂起，等主人明确特赦（或改写为客观认定句）后方可落盘。"
+            ),
+            "rule_key": "jev_legal_self_admission_gate",
+        }
+    return None
+
+
 # ----------------- 3. 错误急诊室 (Error Doctor) -----------------
 def error_doctor(tool_name: str, args: Any, result_str: str) -> Optional[str]:
     """
@@ -269,29 +335,106 @@ def trim_result(tool_name: str, result_str: str, max_chars: int = 4000) -> str:
 
 
 # ----------------- 6. 统一对外综合处理器 -----------------
-def handle_pre_tool_call(tool_name: str, args: Any, **kwargs) -> Optional[Dict[str, str]]:
-    """pre_tool_call 钩子总入口"""
-    return pre_tool_guardian(tool_name, args)
+def handle_pre_tool_call(tool_name: str, args: Any, **kwargs) -> Optional[Dict[str, Any]]:
+    """pre_tool_call 钩子总入口：物理安全红线 + 法律业务红线 双重预审"""
+    # 甲、电脑运维/系统类红线（禁毁系统、禁删记录、高危拍板门禁）
+    guard = pre_tool_guardian(tool_name, args)
+    if guard is not None:
+        return guard
+
+    # 乙、法律业务红线（防自认拦截 / 事实认定归主人）
+    legal = legal_document_guard(tool_name, args)
+    if legal is not None:
+        return legal
+
+    return None
+
 
 def handle_transform_tool_result(tool_name: str, args: Any, result: Any, **kwargs) -> Optional[str]:
     """transform_tool_result 钩子总入口"""
     result_str = str(result) if not isinstance(result, str) else result
-    
+
     # 1. 先检查是否包含中途插话，有则注入 Jev 仲裁令
     steering_augmented = adjudicate_steering(result_str)
     if steering_augmented is not None:
         result_str = steering_augmented
-        
+
     # 2. 检查是否有 400/401/403/404 报错，有则注入 Jev 急诊处方
     error_augmented = error_doctor(tool_name, args, result_str)
     if error_augmented is not None:
         result_str = error_augmented
-        
-    # 3. 结果超长降噪修剪 (仅对 terminal 且超过 5000 字符的结果进行保真折叠)
+
+    # 3. 法律卷宗结果核验（红线3·事实认定归主人 + 真实性核验·FLK 编号）
+    legal_note = legal_result_verifier(tool_name, result_str)
+    if legal_note is not None:
+        result_str = result_str + legal_note
+
+    # 4. 结果超长降噪修剪 (仅对 terminal 且超过 5000 字符的结果进行保真折叠)
     if tool_name == "terminal" and len(result_str) > 5000:
         result_str = trim_result(tool_name, result_str)
-        
+
     # 如果内容有变化则返回新字符串，否则返回 None (Hermes 约定 None 表示原样直通)
     if result_str != str(result):
         return result_str
     return None
+
+
+# ================= 7. 法律结果核验器 (Legal Result Verifier) =================
+# 对应资产包【真实性核验】与【红线3·事实认定归主人】
+
+# 国家法律法规数据库 (FLK) 唯一编号形态：flk.npc.gov.cn 的 bbbs 码 / 带年份的法规引用
+_FLK_ID_PATTERN = re.compile(r"flk[:\-]?\s*[0-9a-zA-Z\-]{6,}", re.IGNORECASE)
+# 法条引用形态：《中华人民共和国民法典》第一千零七十九条 / 第 X 条
+_LAW_CITE_PATTERN = re.compile(r"第[一二三四五六七八九十百千零〇0-9]+条")
+
+# 涉案金额/案号形态：提示"事实认定权归主人"
+_AMOUNT_PATTERN = re.compile(r"(?:本金|利息|欠款|金额|余额|标的额)[^\n]{0,20}?[\d,]+(?:\.\d+)?\s*(?:元|万元)")
+_CASE_NO_PATTERN = re.compile(r"[（(]\s*\d{4}\s*[)）][^\s，。]{0,12}?号")
+
+
+def legal_result_verifier(tool_name: str, result_str: str) -> Optional[str]:
+    """法律卷宗结果侧核验：在结果返回模型前，贴上客观核验清单。
+
+    仅当结果中出现"法条引用"或"涉案金额/案号"时才附加，避免污染普通工具结果。
+    """
+    if not isinstance(result_str, str) or len(result_str) < 20:
+        return None
+
+    cites = _LAW_CITE_PATTERN.findall(result_str)
+    amounts = _AMOUNT_PATTERN.findall(result_str)
+    case_nos = _CASE_NO_PATTERN.findall(result_str)
+
+    if not cites and not amounts and not case_nos:
+        return None
+
+    lines = ["\n\n⚖️ 【Jev 法律结果核验清单 · 交付前必查】"]
+
+    # 【真实性核验】法条必须带 FLK 唯一编号与生效年份
+    if cites:
+        has_flk = bool(_FLK_ID_PATTERN.search(result_str))
+        if has_flk:
+            lines.append(f"• 法条引用 {len(cites)} 处：✅ 已检出 FLK 官方编号，可直接引用")
+        else:
+            lines.append(
+                f"• 法条引用 {len(cites)} 处：⚠️ 未检出 FLK 唯一编号！\n"
+                "  → 交付前必须经 legal-hub 回源核实逐字条文与生效年份，禁止凭记忆引用"
+            )
+
+    # 【红线3·事实认定归主人】
+    if amounts or case_nos:
+        bits = []
+        if amounts:
+            bits.append(f"涉案金额 {len(amounts)} 处")
+        if case_nos:
+            bits.append(f"案号 {len(case_nos)} 处")
+        lines.append(
+            f"• {('、'.join(bits))}：⚠️【红线3·事实认定归主人】\n"
+            "  → 只整理不拍板！数字必须逐字对齐原始证据清单，事实认定权归主人"
+        )
+
+    # 【红线2·客观认定句】
+    lines.append(
+        "• 段落首句：必须是可以让法官直接复制进判决书的客观认定句，"
+        "不得使用诉苦/情绪化表述"
+    )
+    return "\n".join(lines)
