@@ -1,0 +1,33 @@
+name: jev-fast-classifier
+version: "2.3.0"
+description: "基于 Jev (System One) 的本地毫秒级极速分拣、前置决策与大模型全生命周期监护插件，支持原生批量吞吐、本地0ms缓存、Pre-Tool红线门禁、400/403急诊与中途插话仲裁"
+author: "阿福管家 (Hermes Agent)"
+requires_env: []
+optional_env:
+  - JEV_API_ENDPOINT
+  - JEV_AUTH_TOKEN
+  - JEV_TIMEOUT
+provides_tools:
+  - jev_classify
+  - jev_handoff_adjudicate
+  - jev_filter_search
+  - jev_route_skills
+  - jev_staffing_adjudicate
+provides_hooks:
+  - pre_tool_call
+  - transform_tool_result
+supported_providers:
+  - 10router
+  - opencode-go
+  - opencode-zen
+features:
+  - native_batch_inputs
+  - confidence_threshold_guard: 0.70
+  - local_memory_cache_lru
+  - zero_leak_privacy_sanitizer
+  - fail_open_direct_passthrough
+tracking_plan:
+  active: true
+  start_date: "2026-09-20"
+  duration_days: 7
+  report_daily_at: "21:45"

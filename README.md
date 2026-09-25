@@ -1,4 +1,4 @@
-# Jev Preflight Director 2.2.0
+# Jev Preflight Director 2.4.0
 
 **High-speed preflight routing, task preloading, and autonomous cognitive operating system for production LLM Agents.**
 
@@ -6,6 +6,29 @@
 [![Latency](https://img.shields.io/badge/Preflight%20Latency-%3C%200.2ms-brightgreen.svg)](#performance)
 [![Dynamic Eval Count](https://img.shields.io/badge/Decisions-Transparent-blue.svg)](#architecture)
 [![Autonomous Distillation](https://img.shields.io/badge/Cache%20Evolution-Daily%20Cron-orange.svg)](#semantic-distillation)
+
+---
+
+## 🌟 What's New in v2.4.0 (Production Hardening & Typography Governance)
+
+1. **Pre-Work-Post Tool-Mirroring Contract (`三账合一与工具顺位绝对映射铁律`)**  
+   - **Phase 1 Pre-flight Alignment (`# 0`)**: Structurally outlines execution targets strictly indexed by planned tool execution order (`## 一、 第一顺位工具计划：调度 [工具A]`).
+   - **Phase 2 Work Execution (`# 1`)**: Executes core operations mirror-mapped to the declared tool sequence (`## 一、 调用 [工具A] 工具：[...]`).
+   - **Phase 3 Machine Verification Bill (`# 2`)**: Emits grounded machine verification with real `exit 0` assertions under identical tool categories (`## 一、 第一顺位核验：[工具A]`).
+
+2. **Five-State Standard Badge Dictionary (`五态核验标准徽章字典`)**  
+   Strict state assertions across all verification bills:
+   - `✅` [Completed / Pass]: Tool-verified with hard evidence (`exit 0`, original document extracted).
+   - `⛔` [Blocked / Fail]: Execution error, 403 / timeout, or unfulfilled target.
+   - `⏳` [Pending Approval / Blocked by Safety Guard]: Plans ready, waiting for explicit user approval due to physical redlines.
+   - `🔄` [In-Progress / Background Worker]: Asynchronous long-running jobs (benchmark, batch download).
+   - `⏭️` [Exempt / Skipped]: Hit local T0/T1 cache or safely bypassed.
+
+3. **Thread-Safe Global Lifecycle Counter (`jev_context.py`)**  
+   Upgraded from thread-isolated `contextvars.ContextVar` to a thread-safe singleton accumulator (`threading.Lock`). Subagents, async background threads, and multi-turn tools now 100% aggregate their real decision counts into the global gateway telemetry (`· 判断X次 ·`).
+
+4. **Feishu Single-Card Native Collapsible Rail (V2 Preparation)**  
+   Hardened adapter and runner bindings to collapse multi-step tool progress into clean, ordered card layouts, completely eliminating disordered floating bubble spam.
 
 ---
 
