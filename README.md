@@ -120,7 +120,27 @@ cd jev-preflight-director
 pip install -e .
 ```
 
-### 2. Basic Turn Orchestration
+### 2. Zero-Config & API Setup
+
+This engine works completely **out of the box with zero external configuration**:
+- **Default Tier (Zero-Key)**: Automatically connects to TypeSafe's public community pool (`https://classifier.dev/`) without requiring an API key.
+- **Local Cache Tier**: Built-in 0ms SQLite local pattern caching with autonomous distillation.
+- **Fail-Open Safe**: Gracefully falls back to raw prompt execution if the network times out (>1.2s).
+
+**Optional API Acceleration:**
+If you have private dedicated endpoints or commercial keys, configure your environment:
+```bash
+# Option 1: Dedicated TypeSafe / Jev Auth Token
+export JEV_AUTH_TOKEN="your_jev_auth_token"
+
+# Option 2: OpenRouter Decisions Gateway
+export OPENROUTER_API_KEY="sk-or-v1-xxxx"
+
+# Option 3: Custom Self-Hosted / Private Jev Endpoint
+export JEV_API_ENDPOINT="https://your-custom-endpoint.com/api"
+```
+
+### 3. Basic Turn Orchestration
 
 ```python
 from jev.orchestrator import JevFullOrchestrator
