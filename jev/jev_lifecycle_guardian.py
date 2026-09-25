@@ -35,6 +35,13 @@ def pre_tool_guardian(tool_name: str, args: Any) -> Optional[Dict[str, Any]]:
       - {"action": "modify", "args": {...}}         -> 就地纠偏入参后放行
       - {"action": "approve","message": "..."}      -> 升级人工拍板门禁
     """
+    try:
+        from jev_context import record_jev_call
+        # 统计中途每次工具调用的 Jev 门禁与安全审判
+        record_jev_call(eval_count=1)
+    except Exception:
+        pass
+
     if not isinstance(args, dict):
         return None
 
