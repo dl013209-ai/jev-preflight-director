@@ -247,11 +247,30 @@ def error_doctor(tool_name: str, args: Any, result_str: str) -> Optional[str]:
         return result_str + prescription
 
     # D. 404 Not Found (路径/端点错误)
+    # 404 处理
     if "404" in result_str and ("not found" in lower_res or "page not found" in lower_res):
         prescription = (
             "\n\n🚨 【Jev 错误急诊室 · 404 端点未找到处方】\n"
             "• 根因诊断: 请求 URL 路径或端点路由拼写有误（如漏写 /v1 或多拼了 /chat）！\n"
             "• 裁决指令: 检查 base_url 配置是否符合 OpenAI 规范标准！"
+        )
+        return result_str + prescription
+
+    # 429 限流 / 重试陷入死循环 (Anti-Loop / Search Trigger)
+    if "429" in result_str or "rate limit" in lower_res or "too many requests" in lower_res:
+        prescription = (
+            "\n\n🚨 【Jev 错误急诊室 · 429 频控/死循环熔断处方】\n"
+            "• 根因诊断: 命中目标站点或 API 频控，禁止在原地盲目 sleep 循环重试！\n"
+            "• 裁决指令: 立即停止原地重试！如果卡在技术方案上，强制转为调用 web_search 搜索最新官方文档或替代解决方案！"
+        )
+        return result_str + prescription
+
+    # 连续工具报错或未找到模块 (ModuleNotFoundError / SyntaxError / Command Failed)
+    if any(k in lower_res for k in ["modulenotfounderror", "command not found", "syntaxerror", "nosuchfileordirectory", "traceback"]):
+        prescription = (
+            "\n\n💡 【Jev 智能破障裁判 · 搜索急诊建议】\n"
+            "• 根因诊断: 检测到底层代码、工具依赖或环境异常，严禁凭空盲猜！\n"
+            "• 裁决指令: 若尝试 1 次排查未果，严禁原地绕圈超过 2 步，必须优先调用 web_search 检索该报错的官方解决方案！"
         )
         return result_str + prescription
 
@@ -380,9 +399,44 @@ def handle_transform_tool_result(tool_name: str, args: Any, result: Any, **kwarg
     if tool_name == "terminal" and len(result_str) > 5000:
         result_str = trim_result(tool_name, result_str)
 
+    # 5. Gemini 提前交卷防烂尾督战令 (Anti-Premature-Exit Guard)
+    # 检测是否为多步任务且结果中暗示还有后续待办
+    premature_guard = enforce_full_execution(tool_name, result_str)
+    if premature_guard is not None:
+        result_str = result_str + premature_guard
+
     # 如果内容有变化则返回新字符串，否则返回 None (Hermes 约定 None 表示原样直通)
     if result_str != str(result):
         return result_str
+    return None
+
+
+# ================= 6. 防提前交卷督战器 (Anti-Premature-Exit Guard) =================
+def enforce_full_execution(tool_name: str, result_str: str) -> Optional[str]:
+    """
+    针对 Gemini/大模型跑了一两步就自作主张退出的行为：
+    智能研判任务与上下文，避免单步任务误伤，确保多步/批量任务必须跑完全量！
+    """
+    # 1. 纯只读或单次轻量查询（如简单看单个文件、查单个系统状态），不滥发督战令
+    single_turn_tools = ["read_file", "search_files", "web_search", "web_search_plus"]
+    
+    # 2. 如果结果中明确包含批量进度（如 Step X / Total Y, Batch, 进度等）或者带有未完成痕迹
+    lower_res = result_str.lower()
+    has_batch_signals = any(k in lower_res for k in [
+        "step 1", "step 2", "1/", "2/", "batch 1", "queue", "remaining", 
+        "未完成", "待处理", "next", "continue", "进度", "项中第"
+    ])
+
+    # 3. 针对 terminal 执行后返回的情况：如果终端执行中提示有多项
+    if tool_name == "terminal" or has_batch_signals:
+        watchdog_prompt = (
+            "\n\n🚨 【Jev 进度督战裁判 · 严禁半途而废 / 严禁提前交卷】\n"
+            "• 督战铁律: 若主人明确交代了多条/多步骤批量任务，严禁执行 1~2 步就自作主张结束思考！\n"
+            "• 检查清单: 请核对当前执行进度，若全量列表未全部完成，【必须立即】继续发起下一个工具调用！\n"
+            "• 交付门禁: 只有全量清单均已执行且有实测铁证，才允许出具最终核验账单！未跑完严禁停机！"
+        )
+        return watchdog_prompt
+
     return None
 
 
