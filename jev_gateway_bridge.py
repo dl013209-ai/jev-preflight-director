@@ -196,6 +196,16 @@ def run_gateway_preflight(agent, api_message: str) -> dict:
         res["preflight_card_markdown"] = card_md
 
         # 核心纪律注入：要求末尾 Jev 打勾账单严格按 task_items 逐项打勾，实现首尾 1:1 绝对对齐！
+        mcp_dispatch_matrix = (
+            "\n\n【Jev 核心武器库调度契约（官方 Jev-MCP 精准点将台）】\n"
+            "遇到以下关键决策节点时，必须精准调用对应 Jev-MCP 原子工具，绝不靠主模型脑补：\n"
+            "1. 涉及金额/报价/物料单价/发票计算 ➔ 必须调 `mcp__jev__jev_audit` 审计防幻觉；\n"
+            "2. 涉及法律卷宗/合同条款/事实主张对质 ➔ 必须调 `mcp__jev__jev_verify` 比对证据真实性；\n"
+            "3. 涉及多技术方案/决策取舍 ➔ 必须调 `mcp__jev__jev_decide` 获取校准概率；\n"
+            "4. 涉及代码改动/补丁审查/出厂前终审 ➔ 必须调 `mcp__jev__jev_gate` 跑证据门禁；\n"
+            "5. 遇到海量搜索结果或长文选拔 ➔ 必须调 `mcp__jev__jev_find` / `mcp__jev__jev_rerank` 进行相关性重排；\n"
+            "单轮任务按需挑选 1~2 个最核心工具即可，严禁无脑全塞堆砌！"
+        )
         preflight_ban_directive = (
             "\n\n【Jev 飞书卡片单向交付硬红线】\n"
             "1. 本轮「📋 前置理解对账单」已由 Jev 外脑以独立天蓝卡片率先送达主人飞书界面！\n"
@@ -205,7 +215,7 @@ def run_gateway_preflight(agent, api_message: str) -> dict:
             f"{tasks_directive}\n"
             "状态严格采用 Emoji 徽章（✅ 已完成 / 🚫 未达成 / ⏳ 待确认 / 🔄 进行中 / ⏭️ 已豁免），并附上真实工具执行铁证！\n"
         )
-        res["injected_message"] = res.get("injected_message", api_message) + preflight_ban_directive
+        res["injected_message"] = res.get("injected_message", api_message) + mcp_dispatch_matrix + preflight_ban_directive
 
         return res
     except Exception as e:
