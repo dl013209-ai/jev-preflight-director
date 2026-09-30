@@ -106,6 +106,33 @@ def pre_tool_guardian(tool_name: str, args: Any) -> Optional[Dict[str, Any]]:
                 )
             }
 
+    # ---------- C. 针对 Jev-MCP 痛点定制的参数净化与自动削减器 (Issue #28 修复) ----------
+    if tool_name.startswith("mcp__jev__") or tool_name.startswith("jev_"):
+        # 官方 MCP 对未知字段抛出严苛异常 (z.strictObject reject unknown keys)
+        # 插件自动剥离大模型擅自添加的冗余参数 (如 reason, explanation, purpose 等非入参字段)
+        VALID_JEV_KEYS = {
+            "mcp__jev__jev_screen": {"text", "purpose", "review_at", "block_at"},
+            "mcp__jev__jev_verify": {"claims", "evidence", "auto_accept"},
+            "mcp__jev__jev_audit": {"source", "records", "wrong_at"},
+            "mcp__jev__jev_classify": {"items", "classes", "purpose", "context", "auto_accept", "minimum_margin"},
+            "mcp__jev__jev_decide": {"decision", "evidence", "priorities", "candidates", "requirements", "escape_hatches"},
+            "mcp__jev__jev_gate": {"request", "diff", "claims", "evidence", "tests", "auto_accept", "review_at", "composite_floor"},
+            "mcp__jev__jev_find": {"query", "candidates", "top_k"},
+            "mcp__jev__jev_rerank": {"query", "candidates", "top_k"},
+            "mcp__jev__jev_compare": {"passage_a", "passage_b", "aspects", "auto_accept"},
+            "mcp__jev__jev_extract": {"document", "fields", "purpose", "auto_accept", "minimum_margin"},
+            "mcp__jev__jev_review": {"request", "diff", "tests", "auto_accept", "review_at", "composite_floor"},
+        }
+        allowed = VALID_JEV_KEYS.get(tool_name)
+        if allowed:
+            pruned_args = {k: v for k, v in args.items() if k in allowed}
+            if len(pruned_args) != len(args):
+                # 存在非法或多余参数，自动就地纠偏削减，防止 MCP 崩溃
+                return {
+                    "action": "modify",
+                    "args": pruned_args
+                }
+
     return None
 
 
